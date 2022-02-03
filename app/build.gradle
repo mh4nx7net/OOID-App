@@ -1,49 +1,82 @@
 plugins {
-    id 'com.android.application'
-    id 'org.jetbrains.kotlin.android'
+	id 'com.android.application'
+	id 'org.jetbrains.kotlin.android'
 }
 
 android {
-    compileSdk 32
+	compileSdk 32
 
-    defaultConfig {
-        applicationId "com.example.ooiapp"
-        minSdk 21
-        targetSdk 32
-        versionCode 1
-        versionName "1.0"
+	defaultConfig {
+		applicationId "com.example.ooiapp"
+		minSdk 21
+		targetSdk 32
+		versionCode 1
+		versionName "1.0"
 
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-    }
+		testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+	}
+	signingConfigs {
+		release {
+			if (project.hasProperty('RELEASE_STORE_FILE')) {
+				storeFile file(RELEASE_STORE_FILE)
+				storePassword RELEASE_STORE_PASSWORD
+				keyAlias RELEASE_KEY_ALIAS
+				keyPassword RELEASE_KEY_PASSWORD
+			}
+		}
+		debug {
+			if (project.hasProperty('DEBUG_STORE_FILE')) {
+				storeFile file(DEBUG_STORE_FILE)
+				storePassword DEBUG_STORE_PASSWORD
+				keyAlias DEBUG_KEY_ALIAS
+				keyPassword DEBUG_KEY_PASSWORD
+			}
+		}
+		//else --> signingConfig null
+	}
+	buildTypes {
+		debug {
+			if (project.hasProperty('DEBUG_STORE_FILE')) {
+				signingConfig signingConfigs.debug
+			}
+		}
+		release {
 
-    buildTypes {
-        release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        }
-    }
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
-    }
-    kotlinOptions {
-        jvmTarget = '1.8'
-    }
-    buildFeatures {
-        viewBinding true
-    }
+			if (project.hasProperty('RELEASE_STORE_FILE')){
+				// Caution! In production, you need to generate your own keystore file.
+				// see https://facebook.github.io/react-native/docs/signed-apk-android.
+				// signingConfig signingConfigs.debug
+				signingConfig signingConfigs.release
+				minifyEnabled enableProguardInReleaseBuilds
+				proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+
+				// minifyEnabled false
+				// proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+				signingConfig signingConfigs.release
+			}
+		}
+	}
+	compileOptions {
+		sourceCompatibility JavaVersion.VERSION_1_8
+		targetCompatibility JavaVersion.VERSION_1_8
+	}
+	kotlinOptions {
+		jvmTarget = '1.8'
+	}
+	buildFeatures {
+		viewBinding true
+	}
 }
 
 dependencies {
-
-    implementation 'androidx.webkit:webkit:1.2.0'
-    implementation 'androidx.core:core-ktx:1.7.0'
-    implementation 'androidx.appcompat:appcompat:1.4.1'
-    implementation 'com.google.android.material:material:1.5.0'
-    implementation 'androidx.constraintlayout:constraintlayout:2.1.3'
-    implementation 'androidx.navigation:navigation-fragment-ktx:2.3.5'
-    implementation 'androidx.navigation:navigation-ui-ktx:2.3.5'
-    testImplementation 'junit:junit:4.13.2'
-    androidTestImplementation 'androidx.test.ext:junit:1.1.3'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.4.0'
+	implementation 'androidx.webkit:webkit:1.2.0'
+	implementation 'androidx.core:core-ktx:1.7.0'
+	implementation 'androidx.appcompat:appcompat:1.4.1'
+	implementation 'com.google.android.material:material:1.5.0'
+	implementation 'androidx.constraintlayout:constraintlayout:2.1.3'
+	implementation 'androidx.navigation:navigation-fragment-ktx:2.3.5'
+	implementation 'androidx.navigation:navigation-ui-ktx:2.3.5'
+	testImplementation 'junit:junit:4.13.2'
+	androidTestImplementation 'androidx.test.ext:junit:1.1.3'
+	androidTestImplementation 'androidx.test.espresso:espresso-core:3.4.0'
 }
