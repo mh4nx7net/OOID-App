@@ -1,0 +1,157 @@
+name: Build and Deploy
+on:
+  #  push: 
+  #    branches: [main]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    name: Build and Compiling
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        
+      - name: Cache Gradle Wrapper
+        uses: actions/cache@v2
+        with:
+          path: ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-wrapper-${{ hashFiles('**/gradle/wrapper/gradle-wrapper.properties') }}
+
+      - name: Cache Gradle Dependencies
+        uses: actions/cache@v2
+        with:
+          path: ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-caches-${{ hashFiles('**/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-caches-
+            
+      - name: Preparing Enviroment
+        working-directory: android
+        run: |
+          echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf && sudo sysctl -p
+          cat /proc/sys/fs/inotify/max_user_watches
+          chmod +x ./gradlew
+          #&& ./gradlew signingReport
+          
+          #for testing
+          #./gradlew --warning-mode all
+          
+          #debug-build
+          #./gradlew assembleDebug -Dorg.gradle.logging.level=info --warning-mode all
+          
+          #final-build --> app/build/outputs/bundle/release/app.aab; Google Play APP BUNDLE
+          #./gradlew bundleRelease --no-daemon --warning-mode all 
+          
+          # follow by: https://stackoverflow.com/questions/5089042/jarsigner-unable-to-sign-jar-java-util-zip-zipexception-invalid-entry-compres
+          # jarsigner no needed anymore, coz has signed in the front of process(bundleRelease)
+
+      - name: Bundling and Build
+        working-directory: android
+        run: |
+          ./gradlew assembleRelease -Dorg.gradle.logging.level=info --console=rich --warning-mode all #no-sign-build 
+          mkdir -p ../releases
+          #app-release.apk is not signed yet
+          mv ../app/build/outputs/apk/release/app-release-unsigned.apk ../app/build/outputs/apk/release/app-release.apk
+      - uses: actions/cache@v2
+        id: hot-build
+        with:
+          path: releases
+          key: ${{ runner.OS }}-hot-cache-${{ hashFiles('**/releases') }}
+          restore-keys: |
+            ${{ runner.OS }}-hot-cache-
+      - run: cp app/build/outputs/apk/release/*.apk releases/.
+      
+  signature:
+    name: On Fly Signature
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - name: Sync to Release Branches
+        uses: actions/checkout@v2
+        with:
+          ref: releases
+
+      - uses: actions/cache@v2
+        id: hot-build
+        with:
+          path: releases
+          key: ${{ runner.OS }}-hot-cache-${{ hashFiles('**/releases') }}
+          restore-keys: |
+            ${{ runner.OS }}-hot-cache-
+      - name: Sign In [release] 
+        id: sign_app
+        uses: r0adkll/sign-android-release@v1
+        with:
+          releaseDirectory: releases
+          signingKeyBase64: ${{ secrets.RELEASE_SIGNING_KEY }}
+          alias: ${{ secrets.RELEASE_SIGNING_ALIAS }}
+          keyStorePassword: ${{ secrets.RELEASE_SIGNING_STORE_PASSWORD }}
+          keyPassword: ${{ secrets.RELEASE_SIGNING_KEY_PASSWORD }}
+      - run: ls -la releases
+
+      - name: Save and Commit
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add .
+          git commit -m "Hot Build Gradle"
+          git push origin releases
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: app-release-signed.apk
+          path: releases/app-release-signed.apk
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: app-release.apk
+          path: releases/app-release.apk
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: app-release-aligned.apk
+          path: releases/app-release-aligned.apk
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          #tag_name: v0.3.30
+          #release_name: Release ${{ github.ref }}
+          tag_name: ${{ github.ref }}
+          release_name: Release Orion Owl App Demo
+          draft: true
+          prerelease: true
+
+      - name: Upload Release Asset
+        id: upload-release-asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: releases/app-release-signed.apk
+          asset_name: com.owlid.orion.demo.apk
+          asset_content_type: application/apk
+
+  dispatch:
+    needs: signature
+    strategy:
+      matrix:
+        repo: ['mh4nx7net/OOID-App']
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository Dispatch
+        uses: peter-evans/repository-dispatch@v1
+        with:
+          token: ${{ secrets.REPO_ACCESS_TOKEN }}
+          repository: ${{ matrix.repo }}
+          event-type: build-compiling
