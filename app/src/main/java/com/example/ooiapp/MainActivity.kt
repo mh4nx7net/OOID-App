@@ -46,7 +46,7 @@ class MainActivity : AppCompatActivity() {
             Snackbar.make(view, "DEMO APLIKASI OOWL ID", Snackbar.LENGTH_LONG)
                 .setAction("Action", null).show()
         }
-        binding.fab2.setOnClickListener { view ->
+        binding.fab2.setOnClickListener { _ ->
             if (OOIWebView.canGoBack()) {
                 OOIWebView.goBack();
             } else {
